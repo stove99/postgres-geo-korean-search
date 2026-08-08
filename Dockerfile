@@ -73,13 +73,16 @@ RUN ln -s libkiwi.so.${KIWI_VERSION} /usr/local/lib/libkiwi.so.0 && \
     ln -s libkiwi.so.${KIWI_VERSION} /usr/local/lib/libkiwi.so && \
     ldconfig
 
-# timezone: PostgreSQL 세션 기본 타임존 / cron.timezone: pg_cron 스케줄 해석 기준 타임존
-# (cron.timezone은 pg_cron 자체 GUC로 OS·PostgreSQL 타임존과 별개로 설정해야 함. 기본값은 GMT)
-# --lc-collate=C --lc-ctype=C: 실제 한글 검색/정렬은 PGroonga(Groonga)가 처리하므로
-# PostgreSQL 자체 collation은 로케일 종속 정렬 대신 C(byte-order)로 고정한다.
-# 로케일 기반 collation은 OS 업그레이드 시 glibc 컬레이션 버전이 바뀌면 기존 B-tree
-# 인덱스가 조용히 깨질 수 있는데(REINDEX 필요), C는 그런 위험이 없고 더 빠르다.
-ENV POSTGRES_INITDB_ARGS="--encoding=UTF-8 --lc-collate=C --lc-ctype=C -c shared_preload_libraries=pg_cron -c timezone=Asia/Seoul -c cron.timezone=Asia/Seoul"
+# ko_KR 로케일은 베이스 이미지에 없어 빌드 시 미리 생성해 둔다.
+RUN localedef -i ko_KR -c -f UTF-8 -A /usr/share/locale/locale.alias ko_KR.UTF-8
+
+# cron.timezone: pg_cron 자체 GUC라 기본값(GMT)을 OS/PostgreSQL 타임존과 별도로 맞춰줘야 함.
+# collation은 ko_KR.utf8: Full Text 검색은 필요 시에만 PGroonga로 조건부 사용하므로,
+# PGroonga 없이도 기본 ORDER BY/LIKE/ILIKE가 로케일 인식 동작을 하도록 함.
+# 주의: base 이미지(postgres:18-trixie) 업데이트 시 glibc collation 버전이 바뀌면 기존
+# B-tree 인덱스가 조용히 깨질 수 있음 — pg_collation.collversion 확인 후 필요 시
+# ALTER DATABASE ... REFRESH COLLATION VERSION + REINDEX 검토.
+ENV POSTGRES_INITDB_ARGS="--encoding=UTF-8 --lc-collate=ko_KR.utf8 --lc-ctype=ko_KR.utf8 -c shared_preload_libraries=pg_cron -c timezone=Asia/Seoul -c cron.timezone=Asia/Seoul"
 
 RUN mkdir -p /docker-entrypoint-initdb.d && \
     echo "CREATE EXTENSION IF NOT EXISTS pg_cron;" > /docker-entrypoint-initdb.d/01-pg_cron.sql && \

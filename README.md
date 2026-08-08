@@ -82,16 +82,17 @@ docker compose up -d
 
 ## 타임존 / Collation
 
-- 이미지 OS 타임존, PostgreSQL 세션 타임존(`timezone`), pg_cron 스케줄 해석 타임존(`cron.timezone`) 모두 **`Asia/Seoul`(KST)**로 고정되어 있습니다. `cron.timezone`은 pg_cron 자체 GUC로 OS/PostgreSQL 타임존과 별개로 관리되며 기본값이 GMT라 별도로 설정했습니다.
-- DB의 `lc_collate`/`lc_ctype`은 **`C`(byte-order)**로 초기화됩니다. 실제 한글 텍스트 검색/정렬은 아래 설명할 PGroonga(Groonga)가 전담하므로, PostgreSQL 자체 문자열 collation은 로케일 종속 정렬 대신 `C`로 고정해 OS 업그레이드 시 glibc collation 버전 변경으로 인한 B-tree 인덱스 손상 위험을 없애고 정렬 성능도 더 예측 가능하게 만들었습니다.
+- 이미지 OS/PostgreSQL 타임존, pg_cron 스케줄 해석 타임존(`cron.timezone`) 모두 **`Asia/Seoul`(KST)**로 고정되어 있습니다. `cron.timezone`은 pg_cron 자체 GUC라 기본값(GMT)을 별도로 맞췄습니다.
+- DB의 `lc_collate`/`lc_ctype`은 **`ko_KR.utf8`**로 초기화됩니다. Full Text 검색은 필요 시에만 PGroonga로 조건부 사용하므로, PGroonga 없이도 `ORDER BY`/`LIKE`/`ILIKE` 등 기본 기능이 로케일 인식 동작을 하도록 했습니다.
+  - 주의: base 이미지(`postgres:18-trixie`) 업데이트 시 glibc collation 버전이 바뀌면 기존 B-tree 인덱스가 조용히 깨질 수 있습니다. `pg_collation.collversion`을 확인하고, 필요 시 `ALTER DATABASE ... REFRESH COLLATION VERSION` + `REINDEX`를 검토하세요.
 
-## 한글 전문(全文) 검색
+## 한글 Full Text 검색
 
 이 이미지에서 한글 검색이 가장 공을 들인 부분입니다. PGroonga는 세 가지 토크나이저 선택지를 제공하며, 그 특성이 서로 다릅니다.
 
-### 왜 PostgreSQL 기본 전문 검색(`tsvector`)이 아니라 PGroonga인가
+### 왜 PostgreSQL 기본 Full Text 검색(`tsvector`)이 아니라 PGroonga인가
 
-PostgreSQL 내장 전문 검색은 한국어 형태소 분석 사전이 없어 한글 검색 품질이 떨어집니다. PGroonga는 [Groonga](https://groonga.org/) 검색 엔진을 PostgreSQL 인덱스(`USING pgroonga`)로 노출해, CJK(중국어·일본어·한국어)를 포함한 전 언어 전문 검색을 지원합니다.
+PostgreSQL 내장 Full Text 검색은 한국어 형태소 분석 사전이 없어 한글 검색 품질이 떨어집니다. PGroonga는 [Groonga](https://groonga.org/) 검색 엔진을 PostgreSQL 인덱스(`USING pgroonga`)로 노출해, CJK(중국어·일본어·한국어)를 포함한 전 언어 Full Text 검색을 지원합니다.
 
 ### 토크나이저 선택지 비교
 
