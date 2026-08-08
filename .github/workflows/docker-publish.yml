@@ -3,6 +3,9 @@ name: Build and push Docker image
 on:
   push:
     branches: [main]
+    paths:
+      - Dockerfile
+      - token_kiwi.c
   workflow_dispatch: {}
 
 env:
